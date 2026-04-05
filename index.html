@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PadelFinder Berlin - Find Open Padel Courts</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #FFFFFF;
+            color: #111827;
+            line-height: 1.5;
+        }
+
+        /* Header */
+        .header {
+            border-bottom: 1px solid #E5E7EB;
+            background: #FFFFFF;
+            padding: 20px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 16px;
+        }
+
+        .header-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        .header-subtitle {
+            font-size: 13px;
+            color: #6B7280;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 32px;
+            border-bottom: 1px solid #E5E7EB;
+            margin: 0 -24px;
+            padding: 0 24px;
+        }
+
+        .tab {
+            background: none;
+            border: none;
+            padding: 12px 0;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6B7280;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #111827;
+        }
+
+        .tab.active {
+            color: #111827;
+            border-bottom-color: #059669;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Loading indicator */
+        .loading-bar {
+            display: none;
+            margin-bottom: 20px;
+            padding: 12px 16px;
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #6B7280;
+        }
+
+        .loading-bar.active {
+            display: block;
+        }
+
+        /* Weekly View */
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        .week-navigator {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .week-label {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .nav-button {
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #111827;
+            transition: all 0.2s;
+        }
+
+        .nav-button:hover {
+            background: #E5E7EB;
+        }
+
+        .week-grid {
+            overflow-x: auto;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            background: #FFFFFF;
+        }
+
+        .grid-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+
+        .grid-table thead th {
+            padding: 12px 8px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #111827;
+            border-bottom: 1px solid #E5E7EB;
+            background: #F9FAFB;
+        }
+
+        .grid-table tbody td {
+            padding: 0;
+            border: 1px solid #E5E7EB;
+            text-align: center;
+            height: 60px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .grid-table tbody td:hover {
+            background: #F0FDF4;
+        }
+
+        .grid-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #111827;
+        }
+
+        .grid-cell.empty {
+            color: #D1D5DB;
+        }
+
+        .grid-cell.low {
+            background: #F0FDF4;
+        }
+
+        .grid-cell.medium {
+            background: #DCFCE7;
+        }
+
+        .grid-cell.high {
+            background: #BBF7D0;
+        }
+
+        .grid-time-col {
+            width: 80px;
+            font-weight: 600;
+            background: #F9FAFB;
+            border-right: 1px solid #E5E7EB;
+        }
+
+        /* Panel/Modal */
+        .panel-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 200;
+        }
+
+        .panel-overlay.active {
+            display: block;
+        }
+
+        .panel {
+            position: fixed;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            max-width: 500px;
+            background: #FFFFFF;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            z-index: 201;
+            transform: translateX(100%);
+            transition: transform 0.3s;
+        }
+
+        .panel.active {
+            transform: translateX(0);
+        }
+
+        .panel-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #E5E7EB;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .panel-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #6B7280;
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px;
+        }
+
+        .venue-slot-item {
+            padding: 16px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+
+        .venue-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: #059669;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .venue-name:hover {
+            text-decoration: underline;
+        }
+
+        .venue-meta {
+            font-size: 12px;
+            color: #6B7280;
+            margin-top: 4px;
+        }
+
+        .court-detail {
+            margin-top: 8px;
+            padding: 8px 0;
+            border-top: 1px solid #E5E7EB;
+            padding-top: 8px;
+        }
+
+        .court-name {
+            font-size: 13px;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+
+        .slot-time {
+            font-size: 12px;
+            color: #6B7280;
+            margin-bottom: 4px;
+        }
+
+        .slot-price {
+            font-weight: 600;
+            font-size: 13px;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+
+        .book-button {
+            display: inline-block;
+            background: #059669;
+            color: #FFFFFF;
+            padding: 8px 12px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s;
+        }
+
+        .book-button:hover {
+            background: #047857;
+        }
+
+        /* Map View */
+        #map {
+            height: 600px;
+            border-radius: 6px;
+            border: 1px solid #E5E7EB;
+            margin-bottom: 24px;
+        }
+
+        .venue-list-header {
+            font-size: 14px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 16px;
+        }
+
+        .map-venue-card {
+            padding: 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            background: #F9FAFB;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .map-venue-card:hover {
+            background: #FFFFFF;
+            border-color: #059669;
+        }
+
+        .map-venue-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: #111827;
+        }
+
+        .map-venue-info {
+            font-size: 12px;
+            color: #6B7280;
+            margin-top: 2px;
+        }
+
+        /* All Venues View */
+        .filters {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .filter-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #6B7280;
+        }
+
+        .filter-button {
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #6B7280;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-button.active {
+            background: #059669;
+            color: #FFFFFF;
+            border-color: #059669;
+        }
+
+        .filter-button:hover {
+            border-color: #059669;
+            color: #059669;
+        }
+
+        .filter-button.active:hover {
+            background: #047857;
+        }
+
+        .filter-select {
+            padding: 6px 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 4px;
+            font-size: 13px;
+            background: #FFFFFF;
+            color: #111827;
+            cursor: pointer;
+            font-family: "Inter", sans-serif;
+        }
+
+        .search-box {
+            padding: 8px 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: "Inter", sans-serif;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .venue-card {
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+        }
+
+        .venue-card:hover {
+            border-color: #059669;
+        }
+
+        .venue-card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #059669;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 4px;
+        }
+
+        .venue-card-title:hover {
+            text-decoration: underline;
+        }
+
+        .venue-card-meta {
+            font-size: 12px;
+            color: #6B7280;
+            margin-bottom: 8px;
+        }
+
+        .venue-card-address {
+            font-size: 13px;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+
+        .court-count {
+            font-size: 12px;
+            color: #6B7280;
+            margin-bottom: 12px;
+        }
+
+        .slots-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .slot-pill {
+            display: inline-block;
+            background: #F0FDF4;
+            border: 1px solid #DCFCE7;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #047857;
+        }
+
+        .slot-pill a {
+            color: #047857;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .slot-pill a:hover {
+            text-decoration: underline;
+        }
+
+        .no-slots {
+            font-size: 12px;
+            color: #D1D5DB;
+            font-style: italic;
+        }
+
+        .refresh-btn {
+            font-size: 11px;
+            color: #6B7280;
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 8px;
+        }
+
+        .refresh-btn:hover {
+            color: #111827;
+        }
+
+        /* Footer */
+        .footer {
+            padding: 24px;
+            text-align: center;
+            font-size: 12px;
+            color: #6B7280;
+            border-top: 1px solid #E5E7EB;
+            margin-top: 40px;
+        }
+
+        /* Chat Widget */
+        .chat-widget {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 150;
+        }
+
+        .chat-button {
+            width: 56px;
+            height: 56px;
+            background: #059669;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+            transition: all 0.2s;
+        }
+
+        .chat-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(5, 150, 105, 0.4);
+        }
+
+        .chat-icon {
+            width: 24px;
+            height: 24px;
+            fill: #FFFFFF;
+        }
+
+        .chat-card {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 20px;
+            width: 300px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        .chat-card.active {
+            display: block;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-card-header {
+            font-weight: 600;
+            font-size: 14px;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+
+        .chat-card-text {
+            font-size: 13px;
+            color: #6B7280;
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+
+        .chat-close-btn {
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #111827;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .chat-close-btn:hover {
+            background: #E5E7EB;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                padding: 16px;
+            }
+
+            .container {
+                padding: 16px;
+            }
+
+            .tabs {
+                gap: 16px;
+                margin: 0 -16px;
+                padding: 0 16px;
+            }
+
+            .panel {
+                max-width: 100%;
+            }
+
+            .filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-group {
+                flex-wrap: wrap;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            #map {
+                height: 400px;
+            }
+
+            .chat-widget {
+                bottom: 16px;
+                right: 16px;
+            }
+
+            .chat-button {
+                width: 48px;
+                height: 48px;
+            }
+
+            .chat-card {
+                width: calc(100vw - 32px);
+                right: -50%;
+                transform: translateX(50%);
+            }
+
+            .chat-card.active {
+                right: 0;
+                transform: translateX(0);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-content">
+            <div class="header-top">
+                <div>
+                    <div class="header-title">PadelFinder</div>
+                    <div class="header-subtitle">Find open padel courts in Berlin</div>
+                </div>
+            </div>
+            <div class="tabs">
+                <button class="tab active" data-view="weekly">Weekly Overview</button>
+                <button class="tab" data-view="map">Map</button>
+                <button class="tab" data-view="venues">All Venues</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <div class="loading-bar" id="loadingBar"></div>
+
+        <!-- Weekly View -->
+        <div class="view active" id="view-weekly">
+            <div class="week-navigator">
+                <div>
+                    <button class="nav-button" id="prevWeekBtn">← Previous week</button>
+                </div>
+                <div class="week-label" id="weekLabel"></div>
+                <div>
+                    <button class="nav-button" id="nextWeekBtn">Next week →</button>
+                </div>
+            </div>
+            <div class="week-grid">
+                <table class="grid-table" id="weekGrid"></table>
+            </div>
+        </div>
+
+        <!-- Map View -->
+        <div class="view" id="view-map">
+            <div id="map"></div>
+            <div class="venue-list-header" id="mapVenueListHeader"></div>
+            <div id="mapVenueList"></div>
+        </div>
+
+        <!-- All Venues View -->
+        <div class="view" id="view-venues">
+            <div class="filters">
+                <div class="filter-group">
+                    <span class="filter-label">Type:</span>
+                    <button class="filter-button active" data-filter="type" value="all">All</button>
+                    <button class="filter-button" data-filter="type" value="indoor">Indoor</button>
+                    <button class="filter-button" data-filter="type" value="outdoor">Outdoor</button>
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">District:</span>
+                    <select class="filter-select" id="districtFilter">
+                        <option value="">All Districts</option>
+                    </select>
+                </div>
+                <input type="text" class="search-box" id="searchBox" placeholder="Search venue name...">
+            </div>
+            <div id="venuesList"></div>
+        </div>
+    </div>
+
+    <!-- Panel (for weekly view details) -->
+    <div class="panel-overlay" id="panelOverlay"></div>
+    <div class="panel" id="panel">
+        <div class="panel-header">
+            <div class="panel-title" id="panelTitle"></div>
+            <button class="panel-close" id="panelClose">✕</button>
+        </div>
+        <div class="panel-content" id="panelContent"></div>
+    </div>
+
+    <!-- Chat Widget -->
+    <div class="chat-widget">
+        <button class="chat-button" id="chatButton">
+            <svg class="chat-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+            </svg>
+        </button>
+        <div class="chat-card" id="chatCard">
+            <div class="chat-card-header">Chat booking coming soon</div>
+            <div class="chat-card-text">Soon you'll be able to find and book courts directly via chat.</div>
+            <button class="chat-close-btn" id="chatCloseBtn">Close</button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        Availability data from Playtomic · Not affiliated with Playtomic<br>
+        Prices and availability without guarantee
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+    <script>
+        // Hardcoded venue enrichment data
+        const VENUE_META = {
+            "aa7e1831-a90d-4a4f-b6ae-f6d334179907": {district:"Mitte",website:"https://beachmitte.de",openFrom:9,openUntil:22},
+            "8b818dae-aacb-4ea3-aa7b-0e77b1149c85": {district:"Charlottenburg",website:"https://mittepadel.com",openFrom:8,openUntil:23},
+            "6adc7add-0547-4f48-830e-153f9aa5948d": {district:"Lichtenberg",website:"https://padelberlin.de",openFrom:7,openUntil:23},
+            "9fea856e-7d1a-4cae-9831-79015318967b": {district:"Tempelhof",website:"https://pbc-center.com",openFrom:8,openUntil:22},
+            "4a3497a5-f9bd-43eb-9aaa-a972a856b3d2": {district:"Reinickendorf",website:"https://padel-bros.de",openFrom:8,openUntil:22},
+            "632ca5b0-93bc-4718-a3e9-288bc2fe507d": {district:"Neukölln",website:"https://padelneukoelln.de",openFrom:9,openUntil:21},
+            "0220b0b5-c27a-4433-9c91-1798aaec5250": {district:"Lichtenberg",website:"https://padelfc.net",openFrom:8,openUntil:22},
+            "528af083-c941-480e-9d80-b79c82e5bd3f": {district:"Wedding",website:"https://playtomic.io/padel-mitte",openFrom:9,openUntil:20},
+            "7b481280-1f2b-455d-99c7-c1127d6d5137": {district:"Kreuzberg",website:"https://playtomic.io/padel-club-frankfurt-berlin",openFrom:8,openUntil:22},
+            "d4506944-7eb2-40bd-b9ea-9ad4a769db04": {district:"Kreuzberg",website:"https://playtomic.io/birgit",openFrom:8,openUntil:22},
+            "041a4a3c-8895-465d-91d1-c22f75049770": {district:"Lichtenberg",website:"https://playtomic.io/tio-tio-rooftop",openFrom:9,openUntil:21},
+            "8baa8d07-f342-4a05-8c49-e4e754f305db": {district:"Charlottenburg",website:"https://playtomic.io/berlin",openFrom:8,openUntil:22},
+            "d3edd4f5-1930-4d19-aba8-44d62f8f9da8": {district:"Reinickendorf",website:"https://playtomic.io/fuechse-berlin",openFrom:8,openUntil:21},
+            "31bb4900-5ad3-424a-a7fe-ed49ed2bf8e8": {district:"Neukölln",website:"https://playtomic.io/grenzallee-padel",openFrom:9,openUntil:21},
+            "f6f12032-198e-4657-ab45-8aeb0b8a24b5": {district:"Steglitz",website:"https://playtomic.io/padel-lankwitz",openFrom:9,openUntil:21},
+            "28f8be6d-9b46-441e-889d-209cb55acce8": {district:"Treptow",website:"https://playtomic.io/padel-treptow",openFrom:9,openUntil:21},
+            "16825678-053a-400d-b626-4c386d58706b": {district:"Spandau",website:"https://playtomic.io/kickerworld-berlin-spandau",openFrom:9,openUntil:22},
+            "78b39d52-9275-4eeb-8466-1d66f7e1aa7b": {district:"Tempelhof",website:"https://playtomic.io/pdlx",status:"coming_soon",note:"Opening July 2026"}
+        };
+
+        // State
+        let currentWeekStart = getMonday(new Date());
+        let venues = [];
+        let availabilityCache = new Map();
+        let currentTypeFilter = 'all';
+        let currentDistrictFilter = '';
+        let currentSearchQuery = '';
+        let map = null;
+        let markers = {};
+
+        // Utility: Get Monday of current week
+        function getMonday(d) {
+            d = new Date(d);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            return new Date(d.setDate(diff));
+        }
+
+        function formatDate(d) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function getDayName(d) {
+            return d.toLocaleDateString('en-US', { weekday: 'short' });
+        }
+
+        function getDateLabel(d) {
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        // CORS-safe fetch
+        async function fetchWithCORS(url) {
+            try {
+                const response = await fetch(url);
+                if (response.ok) return response.json();
+            } catch (e) {
+                // Try CORS proxy
+                try {
+                    const proxiedUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+                    const response = await fetch(proxiedUrl);
+                    if (response.ok) return response.json();
+                } catch (e2) {
+                    // Silent fail, return empty
+                }
+            }
+            return [];
+        }
+
+        // Fetch venues
+        async function loadVenues() {
+            const url = `https://api.playtomic.io/v1/tenants?coordinate=52.5200,13.4050&sport_id=PADEL&radius=50000&size=50`;
+            const data = await fetchWithCORS(url);
+            venues = Array.isArray(data) ? data : [];
+            populateDistrictFilter();
+            renderAllVenues();
+            initMap();
+        }
+
+        // Fetch availability for a venue on a date
+        async function getAvailability(tenantId, dateStr) {
+            const cacheKey = `${tenantId}_${dateStr}`;
+            if (availabilityCache.has(cacheKey)) {
+                return availabilityCache.get(cacheKey);
+            }
+
+            const url = `https://api.playtomic.io/v1/availability?sport_id=PADEL&tenant_id=${tenantId}&local_start_min=${dateStr}T07:00:00&local_start_max=${dateStr}T23:00:00`;
+            const data = await fetchWithCORS(url);
+            const result = Array.isArray(data) ? data : [];
+            availabilityCache.set(cacheKey, result);
+            return result;
+        }
+
+        // Populate district filter
+        function populateDistrictFilter() {
+            const districts = new Set();
+            venues.forEach(v => {
+                const meta = VENUE_META[v.tenant_id];
+                if (meta && meta.district) {
+                    districts.add(meta.district);
+                }
+            });
+            const sorted = Array.from(districts).sort();
+            const select = document.getElementById('districtFilter');
+            sorted.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.textContent = d;
+                select.appendChild(opt);
+            });
+        }
+
+        // Render all venues list
+        function renderAllVenues() {
+            const container = document.getElementById('venuesList');
+            container.innerHTML = '';
+
+            let filtered = venues;
+
+            // Apply filters
+            if (currentTypeFilter !== 'all') {
+                filtered = filtered.filter(v => {
+                    const hasType = v.resources.some(r =>
+                        r.properties && r.properties.resource_type === currentTypeFilter
+                    );
+                    return hasType;
+                });
+            }
+
+            if (currentDistrictFilter) {
+                filtered = filtered.filter(v => {
+                    const meta = VENUE_META[v.tenant_id];
+                    return meta && meta.district === currentDistrictFilter;
+                });
+            }
+
+            if (currentSearchQuery) {
+                const query = currentSearchQuery.toLowerCase();
+                filtered = filtered.filter(v =>
+                    v.tenant_name.toLowerCase().includes(query)
+                );
+            }
+
+            filtered.forEach(venue => {
+                const meta = VENUE_META[venue.tenant_id] || {};
+                const card = document.createElement('div');
+                card.className = 'venue-card';
+
+                const types = [...new Set(
+                    venue.resources
+                        .filter(r => r.properties)
+                        .map(r => r.properties.resource_type)
+                )].map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(' · ');
+
+                const courtCount = venue.resources.length;
+
+                // Get today's slots from cache
+                const today = formatDate(new Date());
+                const todayAvail = availabilityCache.get(`${venue.tenant_id}_${today}`);
+                let slotsHtml = '';
+
+                if (todayAvail) {
+                    const allSlots = [];
+                    todayAvail.forEach(resource => {
+                        (resource.slots || []).forEach(s => {
+                            const price = s.price ? s.price.toString().replace(/[^0-9.]/g, '') : '–';
+                            allSlots.push({ time: s.start_time.substring(0, 5), price, duration: s.duration });
+                        });
+                    });
+                    allSlots.sort((a, b) => a.time.localeCompare(b.time));
+
+                    if (allSlots.length > 0) {
+                        slotsHtml = '<div class="slots-container">' +
+                            allSlots.slice(0, 8).map(s =>
+                                `<a href="https://app.playtomic.com/tenant/${venue.tenant_uid}" target="_blank" class="slot-pill">${s.time} · €${s.price}</a>`
+                            ).join('') +
+                            (allSlots.length > 8 ? `<span style="font-size:12px;color:#6B7280;">+${allSlots.length - 8} more</span>` : '') +
+                            '</div>';
+                    } else {
+                        slotsHtml = '<div class="no-slots">No slots available today</div>';
+                    }
+                } else {
+                    slotsHtml = '<div class="no-slots" style="color:#9CA3AF;">Loading...</div>';
+                }
+
+                card.innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                        <div>
+                            <a href="${meta.website || '#'}" target="_blank" class="venue-card-title">${venue.tenant_name}</a>
+                            <div class="venue-card-meta">${meta.district || 'Unknown'} · ${types || 'Padel'} · ${courtCount} court${courtCount !== 1 ? 's' : ''}</div>
+                            <div class="venue-card-address">${venue.address?.street || ''}, ${venue.address?.postal_code || ''} ${venue.address?.city || ''}</div>
+                        </div>
+                        <button class="refresh-btn" onclick="refreshVenueSlots('${venue.tenant_id}')">↻</button>
+                    </div>
+                    ${slotsHtml}
+                `;
+                container.appendChild(card);
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #6B7280; padding: 40px;">No venues found</div>';
+            }
+        }
+
+        async function loadTodaySlotsForAllVenues() {
+            const today = formatDate(new Date());
+            for (const v of venues) {
+                await getAvailability(v.tenant_id, today);
+                await new Promise(r => setTimeout(r, 80));
+            }
+            renderAllVenues();
+        }
+
+        async function refreshVenueSlots(tenantId) {
+            const today = formatDate(new Date());
+            availabilityCache.delete(`${tenantId}_${today}`);
+            await getAvailability(tenantId, today);
+            renderAllVenues();
+        }
+
+        // Weekly view
+        function renderWeekly() {
+            const weekDays = [];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(currentWeekStart);
+                d.setDate(d.getDate() + i);
+                weekDays.push(d);
+            }
+
+            const startLabel = getDateLabel(weekDays[0]);
+            const endLabel = getDateLabel(weekDays[6]);
+            document.getElementById('weekLabel').textContent = `${startLabel} – ${endLabel}`;
+
+            const grid = document.getElementById('weekGrid');
+            grid.innerHTML = '';
+
+            // Build header
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            const thBlank = document.createElement('th');
+            thBlank.className = 'grid-time-col';
+            thBlank.textContent = 'Time';
+            headerRow.appendChild(thBlank);
+
+            weekDays.forEach(d => {
+                const th = document.createElement('th');
+                th.innerHTML = `${getDayName(d)}<br>${getDateLabel(d)}`;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            grid.appendChild(thead);
+
+            // Build body with hours
+            const tbody = document.createElement('tbody');
+            for (let hour = 7; hour <= 22; hour++) {
+                const tr = document.createElement('tr');
+                const tdTime = document.createElement('td');
+                tdTime.className = 'grid-time-col';
+                tdTime.textContent = `${String(hour).padStart(2, '0')}:00`;
+                tr.appendChild(tdTime);
+
+                weekDays.forEach((d, dayIdx) => {
+                    const td = document.createElement('td');
+                    const dateStr = formatDate(d);
+                    const timeKey = `${dateStr}_${hour}`;
+
+                    // Get slot count for this cell
+                    let count = 0;
+                    for (let i = 0; i < venues.length; i++) {
+                        const v = venues[i];
+                        const avail = availabilityCache.get(`${v.tenant_id}_${dateStr}`);
+                        if (avail) {
+                            avail.forEach(slot => {
+                                if (slot.slots) {
+                                    slot.slots.forEach(s => {
+                                        const [h] = s.start_time.split(':');
+                                        if (parseInt(h) === hour) count++;
+                                    });
+                                }
+                            });
+                        }
+                    }
+
+                    let cellClass = 'grid-cell empty';
+                    if (count > 0 && count <= 3) cellClass = 'grid-cell low';
+                    if (count > 3 && count <= 7) cellClass = 'grid-cell medium';
+                    if (count > 7) cellClass = 'grid-cell high';
+
+                    td.innerHTML = `<div class="${cellClass}">${count || '–'}</div>`;
+                    td.onclick = () => showPanelForSlot(dateStr, hour);
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            }
+            grid.appendChild(tbody);
+        }
+
+        // Load week data
+        async function loadWeekData() {
+            const loadingBar = document.getElementById('loadingBar');
+            loadingBar.classList.add('active');
+
+            const weekDays = [];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(currentWeekStart);
+                d.setDate(d.getDate() + i);
+                weekDays.push(d);
+            }
+
+            let loaded = 0;
+            const total = weekDays.length * venues.length;
+
+            for (const d of weekDays) {
+                const dateStr = formatDate(d);
+                const dayLabel = getDayName(d);
+                for (const v of venues) {
+                    await getAvailability(v.tenant_id, dateStr);
+                    loaded++;
+                    await new Promise(r => setTimeout(r, 50));
+                }
+                loadingBar.textContent = `Loading... ${dayLabel} done (${Math.round(loaded / total * 100)}%)`;
+                renderWeekly(); // Re-render after each day loads
+            }
+
+            loadingBar.classList.remove('active');
+        }
+
+        // Show panel for selected slot
+        function showPanelForSlot(dateStr, hour) {
+            const panelTitle = document.getElementById('panelTitle');
+            const panelContent = document.getElementById('panelContent');
+
+            const d = new Date(dateStr);
+            const dayName = getDayName(d);
+            const dateLabel = getDateLabel(d);
+            panelTitle.textContent = `Available Courts — ${dayName} ${dateLabel}, ${String(hour).padStart(2, '0')}:00`;
+
+            panelContent.innerHTML = '';
+
+            // Collect all matching slots
+            const slots = [];
+            venues.forEach(v => {
+                const avail = availabilityCache.get(`${v.tenant_id}_${dateStr}`);
+                if (avail) {
+                    avail.forEach(resource => {
+                        if (resource.slots) {
+                            resource.slots.forEach(slot => {
+                                const [h] = slot.start_time.split(':');
+                                if (parseInt(h) === hour) {
+                                    slots.push({
+                                        venue: v,
+                                        resource,
+                                        slot
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+
+            if (slots.length === 0) {
+                panelContent.innerHTML = '<div style="color: #6B7280; padding: 20px;">No available slots at this time.</div>';
+            } else {
+                slots.forEach(({ venue, resource, slot }) => {
+                    const meta = VENUE_META[venue.tenant_id] || {};
+                    // Look up resource info from venue data (availability doesn't include names/types)
+                    const venueResource = (venue.resources || []).find(r => r.resource_id === resource.resource_id);
+                    const courtName = venueResource?.name || 'Court';
+                    const courtType = venueResource?.properties?.resource_type || '';
+                    const typeLabel = courtType ? courtType.charAt(0).toUpperCase() + courtType.slice(1) : '';
+                    const price = slot.price ? slot.price.toString().replace(/[^0-9.]/g, '') : '–';
+                    const startTime = slot.start_time.substring(0, 5);
+
+                    const item = document.createElement('div');
+                    item.className = 'venue-slot-item';
+                    item.innerHTML = `
+                        <a href="${meta.website || '#'}" target="_blank" class="venue-name">${venue.tenant_name}</a>
+                        <div class="venue-meta">${meta.district || ''}${typeLabel ? ' · ' + typeLabel : ''}</div>
+                        <div class="court-detail">
+                            <div class="court-name">${courtName}</div>
+                            <div class="slot-time">${startTime} – ${getEndTime(slot.start_time, slot.duration)} · ${slot.duration}min</div>
+                            <div class="slot-price">€${price}</div>
+                            <a href="https://app.playtomic.com/tenant/${venue.tenant_uid}" target="_blank" class="book-button">Book on Playtomic</a>
+                        </div>
+                    `;
+                    panelContent.appendChild(item);
+                });
+            }
+
+            document.getElementById('panelOverlay').classList.add('active');
+            document.getElementById('panel').classList.add('active');
+        }
+
+        function getEndTime(startTime, durationMins) {
+            const [h, m] = startTime.split(':').map(Number);
+            const totalMins = h * 60 + m + durationMins;
+            const endH = Math.floor(totalMins / 60);
+            const endM = totalMins % 60;
+            return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+        }
+
+        // Close panel
+        function closePanel() {
+            document.getElementById('panelOverlay').classList.remove('active');
+            document.getElementById('panel').classList.remove('active');
+        }
+
+        // Init map
+        function initMap() {
+            if (map) map.remove();
+
+            const mapContainer = document.getElementById('map');
+            map = L.map(mapContainer).setView([52.52, 13.405], 12);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© OpenStreetMap, © CartoDB',
+                maxZoom: 19
+            }).addTo(map);
+
+            markers = {};
+            venues.forEach(v => {
+                if (v.address?.coordinate) {
+                    const coord = v.address.coordinate;
+                    const meta = VENUE_META[v.tenant_id] || {};
+
+                    const marker = L.circleMarker([coord.lat, coord.lon], {
+                        radius: 8,
+                        fillColor: '#059669',
+                        color: '#FFFFFF',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(map);
+
+                    const types = [...new Set(
+                        v.resources.filter(r => r.properties).map(r => r.properties.resource_type)
+                    )].map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(' · ');
+
+                    const popupContent = `
+                        <div style="font-family:Inter,sans-serif;min-width:180px;">
+                            <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${v.tenant_name}</div>
+                            <div style="font-size:12px;color:#6B7280;margin-bottom:8px;">${meta.district || ''} · ${types || 'Padel'}</div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                ${meta.website ? `<a href="${meta.website}" target="_blank" style="font-size:12px;color:#059669;text-decoration:none;">Visit website →</a>` : ''}
+                                <a href="https://app.playtomic.com/tenant/${v.tenant_uid}" target="_blank" style="font-size:12px;color:#059669;text-decoration:none;">Book on Playtomic →</a>
+                            </div>
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent, { closeButton: true, className: 'clean-popup' });
+
+                    markers[v.tenant_id] = marker;
+                }
+            });
+
+            map.on('move', updateMapVenueList);
+            updateMapVenueList();
+        }
+
+        function updateMapVenueList() {
+            const listContainer = document.getElementById('mapVenueList');
+            listContainer.innerHTML = '';
+
+            const bounds = map.getBounds();
+            const visibleVenues = venues.filter(v => {
+                if (!v.address?.coordinate) return false;
+                return bounds.contains([v.address.coordinate.lat, v.address.coordinate.lon]);
+            });
+
+            if (visibleVenues.length === 0) {
+                document.getElementById('mapVenueListHeader').textContent = 'No venues in current view';
+                return;
+            }
+
+            document.getElementById('mapVenueListHeader').textContent = `${visibleVenues.length} venue${visibleVenues.length !== 1 ? 's' : ''} in view`;
+
+            visibleVenues.forEach(v => {
+                const meta = VENUE_META[v.tenant_id] || {};
+                const types = [...new Set(
+                    v.resources
+                        .filter(r => r.properties)
+                        .map(r => r.properties.resource_type)
+                )].map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(' · ');
+
+                const card = document.createElement('div');
+                card.className = 'map-venue-card';
+                card.innerHTML = `
+                    <div class="map-venue-name">${v.tenant_name}</div>
+                    <div class="map-venue-info">${meta.district || 'Unknown'} · ${types || 'Padel'}</div>
+                `;
+                card.onclick = () => {
+                    map.setView([v.address.coordinate.lat, v.address.coordinate.lon], 15);
+                };
+                listContainer.appendChild(card);
+            });
+        }
+
+        // Tab navigation
+        document.querySelectorAll('.tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                btn.classList.add('active');
+
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                const viewId = `view-${btn.dataset.view}`;
+                document.getElementById(viewId).classList.add('active');
+
+                if (btn.dataset.view === 'weekly') {
+                    loadWeekData();
+                } else if (btn.dataset.view === 'map') {
+                    setTimeout(() => {
+                        if (map) map.invalidateSize();
+                    }, 100);
+                }
+            });
+        });
+
+        // Week navigation
+        document.getElementById('prevWeekBtn').addEventListener('click', () => {
+            currentWeekStart.setDate(currentWeekStart.getDate() - 7);
+            loadWeekData();
+        });
+
+        document.getElementById('nextWeekBtn').addEventListener('click', () => {
+            currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+            loadWeekData();
+        });
+
+        // Panel close
+        document.getElementById('panelClose').addEventListener('click', closePanel);
+        document.getElementById('panelOverlay').addEventListener('click', closePanel);
+
+        // Filters
+        document.querySelectorAll('[data-filter="type"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[data-filter="type"]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTypeFilter = btn.value;
+                renderAllVenues();
+            });
+        });
+
+        document.getElementById('districtFilter').addEventListener('change', (e) => {
+            currentDistrictFilter = e.target.value;
+            renderAllVenues();
+        });
+
+        document.getElementById('searchBox').addEventListener('input', (e) => {
+            currentSearchQuery = e.target.value;
+            renderAllVenues();
+        });
+
+        // Chat widget
+        document.getElementById('chatButton').addEventListener('click', () => {
+            document.getElementById('chatCard').classList.toggle('active');
+        });
+
+        document.getElementById('chatCloseBtn').addEventListener('click', () => {
+            document.getElementById('chatCard').classList.remove('active');
+        });
+
+        // Init
+        async function init() {
+            await loadVenues();
+            // Load weekly data for default view, then today's slots in background
+            loadWeekData();
+            loadTodaySlotsForAllVenues();
+        }
+        init();
+    </script>
+</body>
+</html>
