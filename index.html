@@ -567,6 +567,66 @@
             background: #047857;
             box-shadow: 0 6px 16px rgba(5, 150, 105, 0.4);
         }
+
+        /* Select All Chip */
+        .select-all-chip {
+            padding: 4px 12px;
+            border: 1px solid #059669;
+            border-radius: 16px;
+            background: #F0FDF4;
+            color: #059669;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .select-all-chip:hover {
+            background: #DCFCE7;
+            border-color: #059669;
+        }
+
+        /* Day Selector */
+        .day-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .day-btn {
+            padding: 8px 12px;
+            border: 1px solid #D1D5DB;
+            border-radius: 6px;
+            background: #FFFFFF;
+            color: #374151;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .day-btn:hover {
+            border-color: #059669;
+            color: #059669;
+        }
+
+        .day-btn.active {
+            background: #059669;
+            color: #FFFFFF;
+            border-color: #059669;
+        }
+
+        /* Weekly Legend */
+        .weekly-legend {
+            padding: 12px 16px;
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+        }
     </style>
 </head>
 <body>
@@ -694,6 +754,7 @@
 
         // ================== STATE ==================
         let currentWeekStart = getMonday(new Date());
+        let currentVenuesDay = formatDate(new Date()); // day selector for All Venues tab
         let venues = [];
         let availabilityCache = new Map();
         let currentSearchQuery = '';
@@ -727,6 +788,17 @@
 
         function getDateLabel(d) {
             return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        function formatTime(t) {
+            return t.substring(0, 5);
+        }
+
+        function parsePrice(priceStr) {
+            // "30 EUR" -> 30
+            if (!priceStr) return null;
+            const match = priceStr.match(/(\d+)/);
+            return match ? parseInt(match[1]) : null;
         }
 
         // ================== CORS FETCH ==================
@@ -838,6 +910,14 @@
             const sorted = Array.from(districts).sort();
             const container = document.getElementById('districtChips');
             container.innerHTML = '';
+            
+            // Add Select All chip first
+            const selectAllChip = document.createElement('button');
+            selectAllChip.className = 'select-all-chip';
+            selectAllChip.textContent = 'Select All';
+            selectAllChip.addEventListener('click', () => selectAllDistricts());
+            container.appendChild(selectAllChip);
+            
             sorted.forEach(d => {
                 const chip = document.createElement('button');
                 chip.className = 'district-chip';
@@ -850,6 +930,20 @@
             clearChip.textContent = 'Clear';
             clearChip.addEventListener('click', () => clearAllDistricts());
             container.appendChild(clearChip);
+        }
+
+        function selectAllDistricts() {
+            filterState.districts.clear();
+            const districts = new Set();
+            venues.forEach(v => {
+                const meta = VENUE_META[v.tenant_id];
+                if (meta && meta.district) {
+                    districts.add(meta.district);
+                }
+            });
+            districts.forEach(d => filterState.districts.add(d));
+            updateDistrictChips();
+            applyFilters();
         }
 
         function toggleDistrict(district) {
@@ -916,6 +1010,14 @@
             return count;
         }
 
+        function getBackgroundColor(count) {
+            if (count === 0) return '#FFFFFF';
+            if (count <= 5) return '#F0FDF4';
+            if (count <= 20) return '#DCFCE7';
+            if (count <= 50) return '#BBF7D0';
+            return '#86EFAC';
+        }
+
         async function loadWeeklyData() {
             const loading = document.getElementById('loadingBar');
             loading.classList.add('active');
@@ -978,12 +1080,18 @@
                     const td = document.createElement('td');
                     const div = document.createElement('div');
                     div.className = 'grid-cell';
+                    div.title = 'Cells show number of available slots';
+                    
+                    const bgColor = getBackgroundColor(count);
+                    td.style.backgroundColor = bgColor;
+                    
                     if (count === 0) {
                         div.classList.add('empty');
                         div.textContent = '—';
                     } else {
                         div.textContent = count;
                         div.style.cursor = 'pointer';
+                        div.style.color = '#111827';
                         td.addEventListener('click', () => openWeeklyPanel(dateStr, hour));
                     }
                     td.appendChild(div);
@@ -998,6 +1106,48 @@
             endDate.setDate(endDate.getDate() + 6);
             document.getElementById('weekLabel').textContent =
                 `${getDayName(currentWeekStart)} ${getDateLabel(currentWeekStart)} – ${getDayName(endDate)} ${getDateLabel(endDate)}`;
+            
+            // Add legend
+            updateWeeklyLegend();
+        }
+
+        function updateWeeklyLegend() {
+            let legend = document.getElementById('weeklyLegend');
+            if (!legend) {
+                legend = document.createElement('div');
+                legend.id = 'weeklyLegend';
+                legend.className = 'weekly-legend';
+                const table = document.querySelector('.week-grid');
+                table.parentNode.insertBefore(legend, table.nextSibling);
+            }
+            
+            legend.innerHTML = `
+                <div style="margin-top: 12px; font-size: 12px; color: #6B7280;">
+                    <strong>Cells show number of available slots:</strong>
+                    <div style="display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <div style="width: 20px; height: 20px; background: #FFFFFF; border: 1px solid #E5E7EB;"></div>
+                            <span>0 slots</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <div style="width: 20px; height: 20px; background: #F0FDF4;"></div>
+                            <span>1–5</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <div style="width: 20px; height: 20px; background: #DCFCE7;"></div>
+                            <span>6–20</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <div style="width: 20px; height: 20px; background: #BBF7D0;"></div>
+                            <span>21–50</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <div style="width: 20px; height: 20px; background: #86EFAC;"></div>
+                            <span>51+</span>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         function openWeeklyPanel(dateStr, hour) {
@@ -1022,14 +1172,17 @@
                     (resource.slots || []).forEach(s => {
                         if (parseInt(s.start_time.split(':')[0]) === hour) {
                             const meta = VENUE_META[venue.tenant_id] || {};
+                            const price = parsePrice(s.price);
                             slots.push({
                                 venue: venue.tenant_name,
                                 venueId: venue.tenant_id,
+                                slug: venue.slug,
                                 resource: resName,
-                                time: s.start_time,
+                                time: formatTime(s.start_time),
                                 website: meta.website,
                                 district: meta.district,
-                                type: resType
+                                type: resType,
+                                price: price
                             });
                         }
                     });
@@ -1040,6 +1193,63 @@
         }
 
         // ================== ALL VENUES VIEW ==================
+        function renderDaySelector() {
+            let daySelector = document.getElementById('daySelector');
+            if (!daySelector) {
+                daySelector = document.createElement('div');
+                daySelector.id = 'daySelector';
+                daySelector.className = 'day-selector';
+                const searchBox = document.querySelector('.search-box');
+                searchBox.parentNode.insertBefore(daySelector, searchBox.nextSibling);
+            }
+            
+            daySelector.innerHTML = '';
+            for (let i = 0; i < 7; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() + i);
+                const dateStr = formatDate(d);
+                
+                const btn = document.createElement('button');
+                btn.className = 'day-btn';
+                if (dateStr === currentVenuesDay) {
+                    btn.classList.add('active');
+                }
+                btn.textContent = `${getDayName(d)} ${getDateLabel(d)}`;
+                btn.addEventListener('click', () => {
+                    currentVenuesDay = dateStr;
+                    renderDaySelector();
+                    loadVenuesDataForDay();
+                });
+                daySelector.appendChild(btn);
+            }
+        }
+
+        async function loadVenuesDataForDay() {
+            const filtered = getFilteredVenues();
+            const promises = filtered.map(v => getAvailability(v.tenant_id, currentVenuesDay));
+            await Promise.all(promises);
+            renderAllVenues();
+        }
+
+        function getPriceRange(venue, dateStr) {
+            const avail = availabilityCache.get(`${venue.tenant_id}_${dateStr}`) || [];
+            if (avail.length === 0) return null;
+            
+            const prices = [];
+            avail.forEach(resource => {
+                (resource.slots || []).forEach(s => {
+                    const price = parsePrice(s.price);
+                    if (price) prices.push(price);
+                });
+            });
+            
+            if (prices.length === 0) return null;
+            const min = Math.min(...prices);
+            const max = Math.max(...prices);
+            if (min === max) return `€${min}`;
+            return `€${min}–€${max}`;
+        }
+
         function renderAllVenues() {
             const container = document.getElementById('venuesGrid');
             container.innerHTML = '';
@@ -1061,35 +1271,56 @@
 
                 const metaDiv = document.createElement('div');
                 metaDiv.className = 'venue-meta';
-                metaDiv.textContent = `${meta.district || 'Unknown'} • ${venue.resources.length} court(s)`;
+                
+                const indoorCount = venue.resources.filter(r => r.properties?.resource_type === 'indoor').length;
+                const outdoorCount = venue.resources.filter(r => r.properties?.resource_type === 'outdoor').length;
+                const types = [];
+                if (indoorCount > 0) types.push('Indoor');
+                if (outdoorCount > 0) types.push('Outdoor');
+                const typeStr = types.join('/') || 'Courts';
+                
+                metaDiv.textContent = `${meta.district || 'Unknown'} • ${venue.resources.length} ${typeStr.toLowerCase()} • ${types.join('/')}`;
 
                 const slotsDiv = document.createElement('div');
                 slotsDiv.className = 'venue-slots';
 
-                // Get today's slots
-                const today = formatDate(new Date());
-                const avail = availabilityCache.get(`${venue.tenant_id}_${today}`) || [];
+                // Get selected day's slots
+                const avail = availabilityCache.get(`${venue.tenant_id}_${currentVenuesDay}`) || [];
 
                 if (avail.length === 0) {
-                    slotsDiv.textContent = 'No slots available today';
+                    slotsDiv.textContent = 'No slots available';
                 } else {
                     const slotSet = new Set();
+                    const slotPrices = new Map();
                     avail.forEach(resource => {
                         (resource.slots || []).forEach(s => {
-                            slotSet.add(s.start_time);
+                            const timeStr = formatTime(s.start_time);
+                            slotSet.add(timeStr);
+                            if (!slotPrices.has(timeStr)) {
+                                slotPrices.set(timeStr, parsePrice(s.price));
+                            }
                         });
                     });
-                    Array.from(slotSet).sort().slice(0, 5).forEach(time => {
-                        const pillLink = document.createElement('a');
-                        pillLink.href = `https://app.playtomic.com/tenant/${venue.tenant_uid}`;
-                        pillLink.target = '_blank';
-                        pillLink.textContent = time;
+                    
+                    const slots = Array.from(slotSet).sort().slice(0, 5);
+                    if (slots.length === 0) {
+                        slotsDiv.textContent = 'No slots available';
+                    } else {
+                        slots.forEach(time => {
+                            const price = slotPrices.get(time);
+                            const priceStr = price ? ` (€${price})` : '';
+                            
+                            const pillLink = document.createElement('a');
+                            pillLink.href = `https://playtomic.com/clubs/${venue.slug}`;
+                            pillLink.target = '_blank';
+                            pillLink.textContent = `${time}${priceStr}`;
 
-                        const pill = document.createElement('div');
-                        pill.className = 'slot-pill';
-                        pill.appendChild(pillLink);
-                        slotsDiv.appendChild(pill);
-                    });
+                            const pill = document.createElement('div');
+                            pill.className = 'slot-pill';
+                            pill.appendChild(pillLink);
+                            slotsDiv.appendChild(pill);
+                        });
+                    }
                 }
 
                 card.appendChild(nameDiv);
@@ -1118,11 +1349,26 @@
                 if (!meta || !lat || !lon) return;
 
                 const marker = L.marker([lat, lon]).addTo(map);
+                
+                const today = formatDate(new Date());
+                const priceRange = getPriceRange(venue, today);
+                const priceStr = priceRange || 'Check availability';
+                
+                const indoorCount = venue.resources.filter(r => r.properties?.resource_type === 'indoor').length;
+                const outdoorCount = venue.resources.filter(r => r.properties?.resource_type === 'outdoor').length;
+                const types = [];
+                if (indoorCount > 0) types.push('Indoor');
+                if (outdoorCount > 0) types.push('Outdoor');
+                const typeStr = types.join('/') || 'Courts';
+                
                 const popupContent = `
                     <div style="font-size: 13px;">
                         <strong><a href="${meta.website}" target="_blank" style="color: #059669; text-decoration: none;">${venue.tenant_name}</a></strong><br>
-                        ${meta.district}<br>
-                        <a href="https://app.playtomic.com/tenant/${venue.tenant_uid}" target="_blank" style="color: #059669; text-decoration: none;">Book on Playtomic →</a>
+                        <span style="color: #6B7280; font-size: 12px;">
+                            ${meta.district} • ${venue.resources.length} courts • ${typeStr}<br>
+                            ${priceStr}
+                        </span><br>
+                        <a href="https://playtomic.com/clubs/${venue.slug}" target="_blank" style="color: #059669; text-decoration: none; font-size: 12px;">Book on Playtomic →</a>
                     </div>
                 `;
                 marker.bindPopup(popupContent);
@@ -1157,7 +1403,9 @@
             const title = document.getElementById('panelTitle');
             const content = document.getElementById('panelContent');
 
-            title.textContent = `Slots at ${hour}:00 on ${dateStr}`;
+            const d = new Date(dateStr);
+            const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            title.textContent = `Slots at ${hour}:00 on ${dateLabel}`;
             content.innerHTML = '';
 
             if (slots.length === 0) {
@@ -1180,13 +1428,14 @@
                     details.style.fontSize = '12px';
                     details.style.color = '#6B7280';
                     details.style.marginTop = '4px';
-                    details.textContent = `${slot.resource} • ${slot.time} • ${slot.type}`;
+                    const priceStr = slot.price ? ` • €${slot.price}` : '';
+                    details.textContent = `${slot.resource} • ${slot.type}${priceStr}`;
 
                     info.appendChild(venueLink);
                     info.appendChild(details);
 
                     const bookLink = document.createElement('a');
-                    bookLink.href = `https://app.playtomic.com/tenant/${slot.venueId}`;
+                    bookLink.href = `https://playtomic.com/clubs/${slot.slug}`;
                     bookLink.target = '_blank';
                     bookLink.textContent = 'Book →';
                     bookLink.style.color = '#059669';
@@ -1225,6 +1474,7 @@
             }
 
             if (viewName === 'venues') {
+                renderDaySelector();
                 renderAllVenues();
                 document.getElementById('searchInput').focus();
             } else if (viewName === 'map') {
@@ -1271,6 +1521,6 @@
             // Load initial data
             loadVenues();
         });
-    </script>
+</script>
 </body>
 </html>
